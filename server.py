@@ -3,16 +3,18 @@ import _thread
 from random import randint
 
 clientes = []
+HOST = input("Enter host address: ")
+PORT = 5000
 
-def post_message(socket,message):
-    for cliente in clientes:
+def post_message(socket,message):   #Função para enviar uma mensagem para todos
+    for cliente in clientes:        #os clientes. 
         print("Enviando "+ message + " para ")
         print(cliente)
         socket.sendto(message.encode(),cliente)
 
-def Cliente_Thread(cliente):
-    new_bind = False
-    new_host = '10.40.131.9'
+def Cliente_Thread(cliente):    #Thread para atender cada cliente, é criada uma para
+    new_bind = False            #cada cliente
+    new_host = HOST
     new_port = randint(10000, 64000)
     message = ""
     user_name = ""
@@ -61,17 +63,20 @@ def Cliente_Thread(cliente):
 
 
 
-#INICIO DO PROGRAMA
-HOST = '10.40.131.9'              # Endereco IP do Servidor
+#INICIO DO PROGRAMA           
 PORT = 5000            # Porta que o Servidor esta
 clientes = []
 
 udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 orig = (HOST, PORT)
-udp.bind(orig)
+udp.bind(orig)      #Cria Socket no host e porta especificado para receber
+                    #conexões de clientes.
 
 while True:
-    msg, cliente = udp.recvfrom(1024)
+    #Servidor fica em loop infinito esperando novas conexões, cada
+    #vez que o servidor recebe HELLO de um cliente, ele cria uma thread
+    #para atendê-lo exclusivamente e insere esse cliente na lista de clientes.
+    msg, cliente = udp.recvfrom(1024)    
     if (msg.decode() == "HELLO"):
         print("New Client.\n")
         clientes.append(cliente)
