@@ -1,5 +1,5 @@
 #####################################
-# 
+#
 # Chat UDP - Aplicação cliente
 # Autor: Hugo Constantinopolos.
 # Disponível em : https://github.com/hugocpolos/udp_simpleChat
@@ -28,6 +28,8 @@ input_field.pack(side=BOTTOM, fill=X)
 # Função chamada ao pressionar a tecla
 # Enter. Envio de mensagens ao servidor
 #
+
+
 def Enter_pressed(event):
     input_get = input_field.get()
 
@@ -45,6 +47,8 @@ def Enter_pressed(event):
 # interface gráfica (messages) e posiciona a tela na
 # ultima mensagem recebida.
 #
+
+
 def listen(socket):
     while True:
         message, addr = udp.recvfrom(1024)
@@ -53,9 +57,10 @@ def listen(socket):
 #
 #######################################
 
+
 ######################################
 #
-# Inicialização da conexão UDP 
+# Inicialização da conexão UDP
 # com o servidor.
 #
 HOST = input("Enter server address: ")  # Endereco IP do Servidor
@@ -90,8 +95,8 @@ udp2.sendto(message, dest2)
 # Espera requisição de nome de usuário
 msg, server_addr = udp2.recvfrom(1024)
 #
-# Envia o nome de usuário 
-message = input (msg.decode())
+# Envia o nome de usuário
+message = input(msg.decode())
 message = message.encode()
 udp2.sendto(message, dest2)
 #
@@ -101,7 +106,7 @@ print("Conexão realizada com sucesso.\n")
 
 ########################################
 # Inicia a thread para receber mensagens.
-_thread.start_new_thread(listen,(udp2,))
+_thread.start_new_thread(listen, (udp2,))
 #
 ########################################
 
