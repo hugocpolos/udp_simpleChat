@@ -1,3 +1,4 @@
+#!/usr/bin/python3.7
 """
 Chat UDP - Server Application
 Author: Hugo Constantinopolos
@@ -122,7 +123,7 @@ class Chat_Server:
             message (string): string containing the message to be sent.
         """
         for client in self.__connected_client:
-            # print("Sending %s to %s." % (message, client))
+            print("Sending '%s' to %s." % (message, client))
             sending_socket.sendto(message.encode(), client.address)
 
     def __wait_for_new_connections(self):
@@ -174,6 +175,7 @@ class Chat_Server:
             client (Connected_Client): connected client.
         """
         new_port = random.randint(10000, 64000)
+        print(new_port)
         sending_socket = self.__start_sending_socket(new_port)
         self.__login(sending_socket, client)
 
