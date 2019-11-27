@@ -1,134 +1,198 @@
-#####################################
-#
-# Chat UDP - Aplicação servidor
-# Autor: Hugo Constantinopolos.
-# Disponível em : https://github.com/hugocpolos/udp_simpleChat
-#
-#####################################
+#!/usr/bin/python3.7
+"""
+Chat UDP - Server Application
+Author: Hugo Constantinopolos
+        hugo.cpolos@gmail.com
+Available at: https://github.com/hugocpolos/udp_simpleChat
+"""
 
-#####################################
-# ÁREA DE IMPORT
 import socket
 import _thread
-from random import randint
-#####################################
-
-#####################################
-# Função para enviar uma mensagem para
-# todos os outros clientes.
-#
+import random
 
 
-def post_message(socket, message):
-    for cliente in clientes:
-        print("Enviando " + message + " para ")
-        print(cliente)
-        socket.sendto(message.encode(), cliente)
-#
-#####################################
+class Connected_Client:
 
-#####################################
-# Thread para tratamento de um cliente
-# O servidor roda uma para cada
-# cliente conectado.
-#
-#
+    """Class describing a client connected to the
+    chat server.
 
+    Attributes:
+        address ((str,int)): tuple containing the client address.
+        username (str): client username
+    """
 
-def Cliente_Thread(cliente):
-    # Inicialização das variáveis locais.
-    new_bind = False
-    new_host = HOST
-    new_port = randint(10000, 64000)
-    message = ""
-    user_name = ""
-    user_message = ""
+    def __init__(self, host, port):
+        """Constructor method for the Connected_Client class.
+        It initializes a client at the given host and port.
 
-    # Abre um novo socket para tratar o cliente.
-    thread_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        Args:
+            host (str): hostname or ip of the client.
+            port (int): udp port used to communicate with this client.
+        """
+        self.__host__ = host
+        self.__port__ = port
+        self.username = None
+        self.address = (self.__host__, self.__port__)
 
-    # Laço para realizar o bind na nova porta gerada aleatoriamente,
-    # enquanto a porta estiver ocupada, será gerada uma nova porta
-    # e realizado nova tentativa de bind.
-    while(new_bind is False):
-        try:
-            # print("Tentando o bind na porta %d\n" % new_port)
-            new_addr = (new_host, new_port)
-            thread_sock.bind(new_addr)
-            new_bind = True
-        except socket.error:
-            new_port = randint(10000, 64000)
-            # print ("criando nova porta %d \n" % new_port)
+    def __str__(self):
+        """This method describes how the client is represented as a string.
 
-    # Envia a nova porta para o cliente
-    message = "NEW_PORT".encode()
-    thread_sock.sendto(message, cliente)
-    # Espera ACK
-    # print("Esperando ACK da nova porta\n")
-    msg, cliente = thread_sock.recvfrom(1024)
-
-    # Pergunta o nome do usuário
-    # print ("ACK Recebido, enviando get_id\n")
-    message = "Nome de usuário: ".encode()
-    thread_sock.sendto(message, cliente)
-
-    # Espera a resposta com o nome de usuário.
-    msg, cliente = thread_sock.recvfrom(1024)
-    user_name = msg.decode()
-
-    # Nesse momento o cliente está conectado.
-    # é enviado a mensagem "Usuário entrou."
-    # para os clientes.
-    user_message = user_name + " entrou."
-    post_message(thread_sock, user_message)
-
-    ######################################
-    # Laço para receber mensagens do cliente, tratá-las
-    # e enviá-las para os demais clientes.
-    while (True):
-        msg, cliente = thread_sock.recvfrom(1024)
-        user_message = user_name + ": " + msg.decode()
-        post_message(thread_sock, user_message)
-    #
-    ######################################
-#
-###################################
+        Returns:
+            str: string in the format 'username@host:port'
+        """
+        return "%s@%s:%d" % (self.username, self.__host__, self.__port__)
 
 
-###################################
-# INICIO DO PROGRAMA
-#
-###################################
-# Inicialização da lista de clientes conectados
-# e do socket para a conexão de novos clientes.
-#
-clientes = []
-HOST = input("Enter host address: ")
-PORT = 5000            # Porta que o Servidor esta
-udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-orig = (HOST, PORT)
-udp.bind(orig)  # Cria Socket no host e porta especificado para receber
-# conexões de clientes.
-###################################
+class Chat_Server:
 
-###################################
-#
-# Laço para receber novos clientes,
-# sempre que um novo cliente é conectado,
-# é criado uma thread para tratá-lo
-# e o cliente é inserido na lista de
-# clientes conectados.
-#
-while True:
-    # Servidor fica em loop infinito esperando novas conexões, cada
-    # vez que o servidor recebe HELLO de um cliente, ele cria uma thread
-    # para atendê-lo exclusivamente e insere esse cliente na lista de clientes.
-    msg, cliente = udp.recvfrom(1024)
-    if (msg.decode() == "HELLO"):
-        print("New Client.\n")
-        clientes.append(cliente)
-        _thread.start_new_thread(Cliente_Thread, (cliente,))
-    else:
-        pass
-#
-##################################
+    """Class describing an UDP chat server.
+
+    usage:
+            s = Chat_Server(host,port)
+            s.start()
+
+        It creates an udp chat server listening at the given port.
+
+    Attributes:
+        host (str): host address of the server
+        port (int): port where the server will wait for new connections
+    """
+
+    def __init__(self, port):
+        """Constructor method of the class
+
+        Args:
+            port (int): port of the server
+        """
+        self.port = port
+        self.host = None
+        self.__connected_client = []
+        self.__sending_socket = None
+        self.__listen_socket = None
+        self.__initialize_hostname()
+
+    def start(self):
+        """Starts the server.
+        It initializes the socket that will listen for new connections
+        and then call the function that wait for new connections.
+        """
+        self.__start_listen_socket()
+        self.__wait_for_new_connections()
+
+    def __initialize_hostname(self):
+        """It sets the attribute 'host' to the name of the host running
+        this script.
+        """
+        self.host = socket.gethostname()
+
+    def __start_listen_socket(self):
+        """It starts the listening socket.
+        this socket is binded to the port given in the attribute 'port'
+        """
+        self.__listen_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.__listen_socket.bind((self.host, self.port))
+
+    def __start_sending_socket(self, port):
+        """The method starts and returns a new socket binded at the port given by
+        the 'port' argument
+
+        Args:
+            port (int): port which the socket will be binded.
+
+        Returns:
+            socket: An object containing the new socket.
+        """
+        __sending_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        __sending_socket.bind((self.host, port))
+        return __sending_socket
+
+    def __start_client_server_communication(self, client):
+        """This method starts a new thread where the server will communicate
+        with the client exclusively.
+
+        Args:
+            client (Connected_Client): client that the server will establish connection.
+        """
+        _thread.start_new_thread(self.__client_thread__, (client,))
+
+    def __send_message_to_all_connected_clients(self, sending_socket, message):
+        """Send a message to all connected clients.
+
+        Args:
+            sending_socket (socket): socket that will be used to send the message.
+            message (string): string containing the message to be sent.
+        """
+        for client in self.__connected_client:
+            print("Sending '%s' to %s." % (message, client))
+            sending_socket.sendto(message.encode(), client.address)
+
+    def __wait_for_new_connections(self):
+        """This method will make the server start to listen at
+        the port 'self.port' for new clients.
+        """
+        while True:
+            msg, (client_host, client_port) = self.__listen_socket.recvfrom(1024)
+            if (msg.decode() == "HELLO"):
+                # print("New Client.")
+                c = Connected_Client(client_host, client_port)
+                self.__start_client_server_communication(c)
+                self.__connected_client.append(c)
+            else:
+                pass
+
+    def __login(self, sending_socket, client):
+        """Method that implement the login protocol.
+
+        Args:
+            sending_socket (socket): socket that will be used to communicate.
+            client (Connected_Client): client that will login to the chat server.
+        """
+        # Send a NEW_PORT message to the client.
+        message = "NEW_PORT".encode()
+        sending_socket.sendto(message, client.address)
+
+        # Wait for the ACK message.
+        message = sending_socket.recvfrom(1024)[0]
+
+        # print ("ACK %s Recebido, enviando get_id" % (message.decode()))
+        # send the 'please enter your username' message.
+        message = "Please enter your username: ".encode()
+        sending_socket.sendto(message, client.address)
+
+        # Waits for the client username.
+        message = sending_socket.recvfrom(1024)[0]
+        client.username = message.decode()
+
+        # Now, the client is connected.
+        # the message 'username has joined the chat.' will be sent to all other users.
+        message = client.username + " has joined the chat."
+        self.__send_message_to_all_connected_clients(sending_socket, message)
+
+    def __client_thread__(self, client):
+        """method that will login the new username and listen for its messages.
+
+        Args:
+            client (Connected_Client): connected client.
+        """
+        new_port = random.randint(10000, 64000)
+        print(new_port)
+        sending_socket = self.__start_sending_socket(new_port)
+        self.__login(sending_socket, client)
+
+        # In this loop, the server will be continuosly waiting for the client messages
+        # and then sending these messages to all connected clients.
+        while (True):
+            msg = sending_socket.recvfrom(1024)[0]
+            message = client.username + ": " + msg.decode()
+            self.__send_message_to_all_connected_clients(sending_socket, message)
+
+
+def main():
+    """Main function of the program
+    """
+    s = Chat_Server(5000)
+    s.start()
+
+
+if __name__ == '__main__':
+    main()
