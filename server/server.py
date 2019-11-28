@@ -33,6 +33,7 @@ class Connected_Client:
         self.__port__ = port
         self.username = None
         self.address = (self.__host__, self.__port__)
+        self.communication_socket = None
 
     def __str__(self):
         """This method describes how the client is represented as a string.
@@ -128,45 +129,58 @@ class Chat_Server:
 
     def __wait_for_new_connections(self):
         """This method will make the server start to listen at
-        the port 'self.port' for new clients.
+        the port 'self.__listen_socket' for new clients.
         """
         while True:
             msg, (client_host, client_port) = self.__listen_socket.recvfrom(1024)
             if (msg.decode() == "HELLO"):
-                # print("New Client.")
                 c = Connected_Client(client_host, client_port)
                 self.__start_client_server_communication(c)
-                self.__connected_client.append(c)
             else:
                 pass
 
-    def __login(self, sending_socket, client):
+    def __login(self, client):
         """Method that implement the login protocol.
 
         Args:
-            sending_socket (socket): socket that will be used to communicate.
             client (Connected_Client): client that will login to the chat server.
         """
         # Send a NEW_PORT message to the client.
+        login_is_finished = False
         message = "NEW_PORT".encode()
-        sending_socket.sendto(message, client.address)
+        client.comm_socket.sendto(message, client.address)
 
         # Wait for the ACK message.
-        message = sending_socket.recvfrom(1024)[0]
+        message = client.comm_socket.recvfrom(1024)[0]
 
-        # print ("ACK %s Recebido, enviando get_id" % (message.decode()))
-        # send the 'please enter your username' message.
-        message = "Please enter your username: ".encode()
-        sending_socket.sendto(message, client.address)
+        while not login_is_finished:
+            # print ("ACK %s Recebido, enviando get_id" % (message.decode()))
+            # send the 'please enter your username' message.
+            message = "Please enter your username: ".encode()
+            client.comm_socket.sendto(message, client.address)
 
-        # Waits for the client username.
-        message = sending_socket.recvfrom(1024)[0]
-        client.username = message.decode()
+            # Waits for the client username.
+            message = client.comm_socket.recvfrom(1024)[0].decode()
 
-        # Now, the client is connected.
-        # the message 'username has joined the chat.' will be sent to all other users.
-        message = client.username + " has joined the chat."
-        self.__send_message_to_all_connected_clients(sending_socket, message)
+            # Check if this username is available
+            username_is_available = (message not in [u.username for u in self.__connected_client])
+            if username_is_available:
+                # The username is available, send "ACK" to the client
+                # and start the client connection.
+                client.username = message
+                message = "ACK".encode()
+                client.comm_socket.sendto(message, client.address)
+
+                # Now, the client is connected.
+                login_is_finished = True
+                self.__connected_client.append(client)
+                # The message 'username has joined the chat.' will be sent to all other users.
+                message = client.username + " has joined the chat."
+                self.__send_message_to_all_connected_clients(client.comm_socket, message)
+            else:
+                # The username is not available, send "NACK" to the client.
+                message = "NACK".encode()
+                client.comm_socket.sendto(message, client.address)
 
     def __client_thread__(self, client):
         """method that will login the new username and listen for its messages.
@@ -176,15 +190,36 @@ class Chat_Server:
         """
         new_port = random.randint(10000, 64000)
         print(new_port)
-        sending_socket = self.__start_sending_socket(new_port)
-        self.__login(sending_socket, client)
+        client.comm_socket = self.__start_sending_socket(new_port)
+        self.__login(client)
 
         # In this loop, the server will be continuosly waiting for the client messages
         # and then sending these messages to all connected clients.
         while (True):
-            msg = sending_socket.recvfrom(1024)[0]
-            message = client.username + ": " + msg.decode()
-            self.__send_message_to_all_connected_clients(sending_socket, message)
+            msg = client.comm_socket.recvfrom(1024)[0].decode()
+            if msg == "LOGOUT" or msg == "logout":
+                message = "%s has left." % (client.username)
+                self.__send_message_to_all_connected_clients(client.comm_socket, message)
+                self.__logout(client)
+                break
+            else:
+                message = client.username + ": " + msg
+                self.__send_message_to_all_connected_clients(client.comm_socket, message)
+
+    def __logout(self, client):
+        """logout a client.
+
+        Args:
+            client (Connected_Client): client object
+        """
+        # Close the client communication socket.
+        client.comm_socket.close()
+
+        # remove the client from the list of connected clients.
+        self.__connected_client.remove(client)
+
+        # Free the memory
+        del client
 
 
 def main():

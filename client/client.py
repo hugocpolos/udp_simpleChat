@@ -63,6 +63,8 @@ class Chat_GUI:
         message = self.__input_field.get().encode()
         self.__socket.sendto(message, self.__server_address)
         self.__input_user.set('')
+        if message.decode() == "LOGOUT" or message.decode() == "logout":
+            self.quit()
 
     def insert_received_message_at_the_board(self, message):
         """Inserts a message at the message board.
@@ -72,6 +74,9 @@ class Chat_GUI:
         """
         self.__messages.insert(tkinter.INSERT, '%s\n' % message.decode())
         self.__messages.see("end")
+
+    def quit(self):
+        self.__window.destroy()
 
 
 class Chat_Client:
@@ -109,7 +114,17 @@ class Chat_Client:
             self.__start_sending_socket()
             self.__chat_gui = Chat_GUI(self.__sending_socket, self.__chat_server_communication_address)
             self.__listen_to_server_messages()
-            self.__chat_gui.start()
+            try:
+                self.__chat_gui.start()
+            except KeyboardInterrupt:
+                pass
+            finally:
+                self.logout()
+
+    def logout(self):
+        """
+        """
+        self.__send_message_to_server("LOGOUT")
 
     def __set_server_address(self, host, port):
         """sets the tuple __chat_server_login_address,
@@ -162,17 +177,27 @@ class Chat_Client:
         # Sends "ACK" to the new communication channel.
         self.__send_message_to_server("ACK")
 
-        # Waits for the server to ask the client username.
-        message = self.__login_and_listening_socket.recvfrom(1024)[0]
+        while not self.is_logged:
+            # Waits for the server to ask the client username.
+            message = self.__login_and_listening_socket.recvfrom(1024)[0]
 
-        # Display the message and waits for the user to enter its username.
-        username = input(message.decode())
+            # Display the message and waits for the user to enter its username.
+            username = input(message.decode())
 
-        # Send the username to the server.
-        self.__send_message_to_server(username)
+            # Send the username to the server.
+            self.__send_message_to_server(username)
 
-        # The client is now connected to the udp chat server.
-        self.is_logged = True
+            # Waits for the server confirmation:
+            # ACK -> SUCCESS
+            # NACK -> FAIL
+            message = self.__login_and_listening_socket.recvfrom(1024)[0].decode()
+
+            if message == "ACK":
+                # The client is now connected to the udp chat server.
+                self.is_logged = True
+            elif message == "NACK":
+                print("This username is already in use. Please choose another one.")
+                continue
 
     def __listen_to_server_messages(self):
         """method that calls the __listen_to_server_messages_thread method
